@@ -1,11 +1,13 @@
 # HTML-JS-Shape-Editor
 Use Instructions:
 Mode:
+
     - Select Mode
         - Click and drag mouse to create a selection rectangle. Shapes inside the rectangle will be selected.
     - Draw Mode
         - Click and drag mouse to create a shape. Default shape is rectangle. Shape is selectable.
 Shapes:
+
     - Drawable Shapes
         - rectangle
         - square
@@ -14,6 +16,7 @@ Shapes:
         - line
         - triangle
 Options:
+
     - New Canvas
         - Click to clear the canvas and start from a fresh slate.
     - Save Canvas as JPEG
