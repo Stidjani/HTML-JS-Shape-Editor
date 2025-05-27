@@ -1,0 +1,344 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fabric.js Shape Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+	<script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="c" width="600" height="400"></canvas>
+<h1>Options</h1>
+<button id="doc">DOCUMENTATION</button>
+<button id="new">new canvas</button>
+<button id="jpeg">save canvas as jpeg</button>
+<button id="pdf">save canvas as pdf</button>
+<button id="tjson">export canvas to JSON</button>
+<button id="fjson">load canvas from JSON</button>
+<p>Shape Inner Color</p>
+<input type="color" id="colorPicker" value="#ff0000">
+<p>Outline/Line Thickness</p>
+<input type="range" min="1" max="10" value="1" class="slider" id="range">
+<h1 id="mode">Mode: Select</h1>
+<button id="select">select</button>
+<button id="draw">draw</button>
+<h1 id="shapedisplay">Shape:	rectangle</h1>
+<button id="rectangle">rectangle</button>
+<button id="square">square</button>
+<button id="triangle">triangle</button>
+<button id="line">line</button>
+<button id="circle">circle</button>
+<button id="ellipse">ellipse</button>
+<script>
+    var canvas = new fabric.Canvas('c');
+    var isDrawing = false;
+    var startX, startY;
+    var	shape;
+	var drawflag = true;
+	var shapeflag = "rectangle";
+	var shapedisplay = document.getElementById("shapedisplay");
+	var activeColor = 'rgba(255, 0, 0, 0.5)';
+	var activeThickness = 1;
+
+	function hexToRGB(hex) { //hexToRGB Function for the color selector, output is hex, js requires rgp
+		const r = parseInt(hex.slice(1, 3), 16);
+		const g = parseInt(hex.slice(3, 5), 16);
+		const b = parseInt(hex.slice(5, 7), 16);
+		return `rgb(${r}, ${g}, ${b})`;
+	}
+
+	const colorPicker = document.getElementById('colorPicker'); //get color picker
+	var slider = document.getElementById("range"); //get line thickness
+	slider.oninput = function() { //when slider is inputted
+		activeThickness = slider.value; //set thickness
+	}
+	colorPicker.addEventListener('input', function() { //when color picker is used
+		const hex = colorPicker.value; //grab color picker hex
+		const rgbColor = hexToRGB(hex); //convert to rgb
+		activeColor = rgbColor; //set active color
+  	});
+
+	document.addEventListener('keydown', function(event) {
+	if (event.ctrlKey && (event.key === 'c')) { //when control c is pressed
+			canvas.getActiveObject().clone(function(cloned) { //clone the selected shape
+			_clipboard = cloned; //hold it in a clipboard variable
+		});
+	}
+	});
+
+	document.addEventListener('keydown', function(event) {
+	if (event.ctrlKey && (event.key === 'v')) { //when control v is pressed
+		_clipboard.clone(function(clonedObj) {
+		canvas.discardActiveObject(); //disregard current selection
+		clonedObj.set({ //set and create new object from the clone, slightly down and to the right
+			left: clonedObj.left + 10,
+			top: clonedObj.top + 10,
+			evented: true,
+		});
+		if (clonedObj.type === 'activeSelection') {
+			clonedObj.canvas = canvas;
+			clonedObj.forEachObject(function(obj) {
+				canvas.add(obj);
+			});
+			clonedObj.setCoords();
+		} else {
+			canvas.add(clonedObj);
+		}
+		_clipboard.top += 10;
+		_clipboard.left += 10;
+		canvas.setActiveObject(clonedObj);
+		canvas.requestRenderAll(); //place object and re render canvas
+	});
+	}
+	});
+
+	const buttonD = document.getElementById("doc"); //open documentation
+    buttonD.addEventListener("click", function() {
+		window.location.href = "documentation.txt";
+    });
+
+	
+	const buttonNew = document.getElementById("new");
+    buttonNew.addEventListener("click", function() {
+		canvas.clear(); //clear canvas when user clicks "new"
+    });
+
+	const jpegButton = document.getElementById("jpeg"); //canvas to jpeg button
+    jpegButton.addEventListener("click", function() {
+		var jpegImage = canvas.toDataURL({format: 'jpeg', quality: 1}); //convert canvas to jpeg
+		const link = document.createElement('a');
+		link.href = jpegImage;
+		link.download = 'canvas.jpeg'; //download jpeg
+		link.click();
+    });
+
+	const pdfButton = document.getElementById("pdf"); //canvas to pdf button
+    pdfButton.addEventListener("click", function() {
+		var jpegImage = canvas.toDataURL({format: 'jpeg', quality: 1}); //convert canvas to jpeg
+		const { jsPDF } = window.jspdf; //use jspdf to convert hpeg to pdf
+		const doc = new jsPDF();
+		doc.addImage(jpegImage, 'JPEG', 10, 10, 200, 200);
+		doc.save("canvas.pdf"); //save pdf
+    });
+
+	const tJSON = document.getElementById("tjson");
+    tJSON.addEventListener("click", function() {
+		var jsonToExport = JSON.stringify(canvas.toJSON()); //turn canvas to a json
+		const blob = new Blob([jsonToExport], { type: "application/json" }); //need to use blob to create a url to save the json with
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = "canvas.json"; //download json
+		link.click();
+		URL.revokeObjectURL(url);
+    });
+
+	const fJSON = document.getElementById("fjson");
+    fJSON.addEventListener("click", function() {
+		const input = document.createElement("input"); //take file input
+		input.type = "file";
+		input.accept = ".json";
+
+		input.onchange = e => {
+			const file = e.target.files[0]; //take file
+			const reader = new FileReader();
+			reader.onload = event => {
+				const json = event.target.result; //save it into json variable
+				canvas.loadFromJSON(json, canvas.renderAll.bind(canvas)); //load json
+			};
+			reader.readAsText(file);
+		};
+
+		input.click();
+    });
+
+	const mode = document.getElementById("mode");
+	const button = document.getElementById("select");
+    button.addEventListener("click", function() {
+		mode.innerHTML = "Mode: Select";
+		drawflag = false;
+    });
+
+	const button2 = document.getElementById("draw");
+    button2.addEventListener("click", function() {
+		mode.innerHTML = "Mode: Draw";
+		drawflag = true;
+    });
+
+	const buttonR = document.getElementById("rectangle");
+    buttonR.addEventListener("click", function() {
+		shapeflag = "rectangle";
+		shapedisplay.innerHTML = "Shape: " + shapeflag;
+    });
+
+	const buttonS = document.getElementById("square");
+    buttonS.addEventListener("click", function() {
+		shapeflag = "square";
+		shapedisplay.innerHTML = "Shape: " + shapeflag;
+    });
+
+	const buttonT = document.getElementById("triangle");
+    buttonT.addEventListener("click", function() {
+		shapeflag = "triangle";
+		shapedisplay.innerHTML = "Shape: " + shapeflag;
+    });
+
+	const buttonL = document.getElementById("line");
+    buttonL.addEventListener("click", function() {
+		shapeflag = "line";
+		shapedisplay.innerHTML = "Shape: " + shapeflag;
+    });
+
+	const buttonC = document.getElementById("circle");
+    buttonC.addEventListener("click", function() {
+		shapeflag = "circle";
+		shapedisplay.innerHTML = "Shape: " + shapeflag;
+    });
+
+	const buttonE = document.getElementById("ellipse");
+    buttonE.addEventListener("click", function() {
+		shapeflag = "ellipse";
+		shapedisplay.innerHTML = "Shape: " + shapeflag;
+    });
+    canvas.on('mouse:down', function(opt) {
+        isDrawing = drawflag; //flag for if were in draw mode or select mode
+        var pointer = canvas.getPointer(opt.e);
+        startX = pointer.x; //store starting x and y positions
+        startY = pointer.y;
+
+		switch(shapeflag) { //switch statement for shape creation, creates shapes starting at mouse down location
+		case "rectangle":
+			shape = new fabric.Rect({
+				left: startX,
+				top: startY,
+				width: 0,
+				height: 0,
+				fill: activeColor,
+				stroke: 'black',
+				strokeWidth: activeThickness
+			});
+			canvas.add(shape);
+			break;
+		case "square":
+			shape = new fabric.Rect({
+				left: startX,
+				top: startY,
+				width: 0,
+				height: 0,
+				fill: activeColor,
+				stroke: 'black',
+				strokeWidth: activeThickness
+			});
+			canvas.add(shape);
+			break;
+		case "triangle":
+			shape = new fabric.Triangle({
+				left: startX,
+				top: startY,
+				width: 0,
+				height: 0,
+				fill: activeColor,
+				stroke: 'black',
+				strokeWidth: activeThickness
+			});
+			canvas.add(shape);
+			break;
+		case "line":
+			shape = new fabric.Line([startX, startY, startX, startY], {
+				stroke: activeColor
+			});
+			canvas.add(shape);
+			break;
+		case "circle":
+			shape = new fabric.Circle ({
+				left: startX,
+				top: startY,
+				radius: 0,
+				fill: activeColor,
+				stroke: 'black',
+				strokeWidth: activeThickness
+			});
+			canvas.add(shape);
+			break;
+		case "ellipse":
+			shape = new fabric.Ellipse ({
+				left: startX,
+				top: startY,
+				rx: 0,
+				ry: 0,
+				fill: activeColor,
+				stroke: 'black',
+				strokeWidth: activeThickness
+			});
+			canvas.add(shape);
+			break;
+		}
+    });
+    canvas.on('mouse:move', function(opt) { //when mouse is moved
+        if (!isDrawing) return;
+        var pointer = canvas.getPointer(opt.e);
+
+		switch(shapeflag) { //switch statement for changing size of shapes as you move the mouse to allow for rubber banding
+		case "rectangle": //each case is just simple math for how to draw the shape
+			var width = pointer.x - startX;
+			var height = pointer.y - startY;
+			if (width >= 0) {
+				shape.set({ width: width });
+			} 
+			else {
+				shape.set({ left: pointer.x, width: -width });
+			}
+			if (height >= 0) {
+				shape.set({ height: height });
+			} 
+			else {
+				shape.set({ top: pointer.y, height: -height });
+			}
+			break;
+		case "square":
+			var width = pointer.x - startX;
+			if (width >= 0) {
+				shape.set({ width: width });
+			} 
+			else {
+				shape.set({ left: pointer.x, width: -width });
+			}
+			if (height >= 0) {
+				shape.set({ height: width });
+			} 
+			else {
+				shape.set({ top: pointer.y, height: -width });
+			}
+			break;
+		case "triangle":
+			shape.set({ width: Math.abs(pointer.x - startX), height: Math.abs(pointer.y - startY)})
+			break;
+		case "line":
+			shape.set({ x2: pointer.x, y2: pointer.y });
+			break;
+		case "circle":
+			var radius = Math.sqrt(Math.pow(pointer.x - startX, 2) + Math.pow(pointer.y - startY, 2)) / 2;
+			shape.set({ radius: radius });
+			break;
+		case "ellipse":
+			var rx = Math.abs(pointer.x - startX) / 2;
+			var ry = Math.abs(pointer.y - startY) / 2;
+			shape.set({ rx: rx, ry: ry });
+			break;
+		}
+        canvas.requestRenderAll();
+    });
+    canvas.on('mouse:up', function(opt) { //when we stop holding, finish the shape and make it selectable again
+        isDrawing = false;
+    	shape.set({ selectable: true });
+    });
+</script>
+
+</body>
+</html>
